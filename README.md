@@ -3,7 +3,7 @@
 This repository contains code used for the transcriptome analysis and associated figure generation in: \
 \
 Lehmann AE, Ramírez EA, Keller NP, Heitman J. Whole-chromosome duplications drive antimicrobial resistance in *Aspergillus fumigatus*.
-2025. \
+*bioRxiv* 2025. https://doi.org/10.1101/2025.09.29.679244 \
 \
 It includes steps to: \
   • Trim and align RNA-seq reads to the A1163 reference genome. \
