@@ -17,15 +17,15 @@ library(ggtext)
 library(pheatmap)
 
 # rep1
-setwd("--/countsdata/rep1")
+setwd("/rep1")
 
 # data preparation for DESeq
 ## bring in counts files
-countfiles <- list.files(pattern = "htseq copy.tsv$")
+countfiles <- list.files(pattern = "htseq.tsv$")
 col_name <- sub("_counts_htseq copy.tsv", "", countfiles)
 
 ## empty list to store dataframes
-dfs <- list()
+dfs <- list()  
 
 for (i in seq_along(countfiles)) {
   df <- read.delim(countfiles[i], 
@@ -33,7 +33,7 @@ for (i in seq_along(countfiles)) {
                    header = FALSE, 
                    col.names = c("gene_ID", col_name[i]))
   dfs[[i]] <- df
-}
+} 
 
 # counts df
 rep1_counts = Reduce(function(x, y) merge(x, y, by = "gene_ID", all = TRUE), dfs)
@@ -44,21 +44,24 @@ row_names <- rep1_counts$gene_ID
 rep1_counts <- rep1_counts[, -1]
 rownames(rep1_counts) <- row_names
 
+# make file that is just a list of all gene IDs for ortholog finding etc. in FungiDB
+write.csv(row_names, "../A1163_geneIDs.csv", quote = FALSE, row.names = FALSE, col.names = FALSE)
+
 ## reorder columns in dataframe
-rep1_counts <- rep1_counts %>% select("AL.C1AR_S28_L002", "AL.C2AR_S29_L002", "AL.C3AR_S30_L002",
-                                      "AL.01AR_S34_L002", "AL.02AR_S35_L002", "AL.03AR_S36_L002",
-                                      "AL.C1FR_S31_L002", "AL.C2FR_S32_L002", "AL.C3FR_S33_L002",
-                                      "AL.01FR_S37_L002", "AL.02FR_S38_L002", "AL.03FR_S39_L002")
+rep1_counts <- rep1_counts %>% select("AL.C1AR_S28_L002_counts_htseq.tsv", "AL.C2AR_S29_L002_counts_htseq.tsv", "AL.C3AR_S30_L002_counts_htseq.tsv",
+                                      "AL.01AR_S34_L002_counts_htseq.tsv", "AL.02AR_S35_L002_counts_htseq.tsv", "AL.03AR_S36_L002_counts_htseq.tsv",
+                                      "AL.C1FR_S31_L002_counts_htseq.tsv", "AL.C2FR_S32_L002_counts_htseq.tsv", "AL.C3FR_S33_L002_counts_htseq.tsv",
+                                      "AL.01FR_S37_L002_counts_htseq.tsv", "AL.02FR_S38_L002_counts_htseq.tsv", "AL.03FR_S39_L002_counts_htseq.tsv")
 
 ## rename columns to match sample info
 colnames(rep1_counts) <- c("Euploid_nodrug_1", "Euploid_nodrug_2", "Euploid_nodrug_3",
-                            "Aneu7A_nodrug_1", "Aneu7A_nodrug_2", "Aneu7A_nodrug_3",
-                            "Euploid_FK506_1", "Euploid_FK506_2", "Euploid_FK506_3",
-                            "Aneu7A_FK506_1", "Aneu7A_FK506_2", "Aneu7A_FK506_3")
+                           "Aneu7A_nodrug_1", "Aneu7A_nodrug_2", "Aneu7A_nodrug_3",
+                           "Euploid_FK506_1", "Euploid_FK506_2", "Euploid_FK506_3",
+                           "Aneu7A_FK506_1", "Aneu7A_FK506_2", "Aneu7A_FK506_3")
 
 # filter out genes with less than 1 TPM in any sample (only keep those that have 1TPM or more average in at least 1 condition/strain)
 ## calculate gene lengths from gff
-gff <- read.delim("A1163_CEA10T2T_liftoff.gff", header = FALSE, col.names = c("contig", "source", "cat", "start", "end", ".", "strand", ".", "ID"), sep = "\t", skip = 6)
+gff <- read.delim("../../A1163_CEA10T2T_liftoff.gff", header = FALSE, col.names = c("contig", "source", "cat", "start", "end", ".", "strand", ".", "ID"), sep = "\t", skip = 6)
 gff_proteincoding <- gff[gff$cat == "protein_coding_gene", ]
 gff_proteincoding$gene <- sub(".*(AFUB_\\d+).*", "\\1", gff_proteincoding$ID)
 gene_lengths <- gff_proteincoding[, c("gene", "start", "end")]
@@ -96,6 +99,7 @@ tpm_avg_rep1 <- tpm_calc_rep1_long %>%
   pivot_wider(names_from = "sample", values_from = "avg")
 
 tpm_filtered_rep1 <- tpm_avg_rep1 %>%
+  #changed TPM filter from 1 to 5 to see if this makes DEG numbers more equal between reps
   filter(if_any(-gene, ~ . >= 1)) %>%
   pull(gene)
 
@@ -119,8 +123,8 @@ rownames(colData_rep1) <- colnames(counts_rep1_tpmfiltered)
 
 # DESeq
 dds_rep1 <- DESeqDataSetFromMatrix(countData = counts_rep1_tpmfiltered,
-                              colData = colData_rep1,
-                              design = ~ condition) 
+                                   colData = colData_rep1,
+                                   design = ~ condition) 
 dds_rep1 <- DESeq(dds_rep1)
 
 #### PCA
@@ -163,8 +167,8 @@ pca_rep1_df <- cbind(pca_rep1_df, colData_rep1[rownames(pca_rep1_df), , drop = F
 
 #pca_rep1_data <- plotPCA(trans_rep1, intgroup = c("condition"), returnData=TRUE) # PC1: 64%; PC2: 24%
 pca_rep1 <- ggplot(pca_rep1_df, 
-                           aes(PC1, PC2, color=condition, shape=condition)) + 
-  geom_richtext(data = pca_rep1_data, 
+                   aes(PC1, PC2, color=condition, shape=condition)) + 
+  geom_richtext(data = pca_rep1_df, 
                 aes(label = condition),
                 color = "black") +
   geom_point(size = 3, shape = c(23, 23, 23, 21, 21, 21, 23, 23, 23, 21, 21, 21),  fill = "white", stroke = 1) +
@@ -181,56 +185,27 @@ pca_rep1 <- ggplot(pca_rep1_df,
         axis.text.x = element_text(size = 7),
         axis.title.y = element_text(size = 8),
         axis.text.y = element_text(size = 7)) +
-  xlab("PC1 (52.2% variance)") +
-  ylab("PC2 (21.6% variance)")
+  xlab("PC1 (52.17% variance)") +
+  ylab("PC2 (21.63% variance)")
 ggsave(file="--/pca_rep1.svg", plot=pca_rep1, width=2.5, height=2.5, units = "in")
 
 # DEG comparisons
 res_aneu_vs_euploid_FK506_rep1 <- as.data.frame(results(dds_rep1,
-                                                     contrast = c("condition", "Aneu7_FK506",
-                                                                  "Euploid_FK506"),
-                                                     alpha = 0.01))
+                                                        contrast = c("condition", "Aneu7_FK506",
+                                                                     "Euploid_FK506"),
+                                                        alpha = 0.01))
+
+res_aneu_vs_euploid_noFK506_rep1 <- as.data.frame(results(dds_rep1,
+                                                        contrast = c("condition", "Aneu7_nodrug",
+                                                                     "Euploid_nodrug"),
+                                                        alpha = 0.01))
 
 # save data
 write.csv(res_aneu_vs_euploid_FK506_rep1, "res_aneu_vs_euploid_FK506_rep1.csv")
-
-volcano_7A <- EnhancedVolcano(res_aneu_vs_euploid_FK506_rep1, 
-                              lab = row.names(res_aneu_vs_euploid_FK506_rep1),
-                              x = 'log2FoldChange',
-                              y = 'padj',
-                              title = NULL,
-                              pCutoff = 0.05,
-                              FCcutoff = 1,
-                              xlab = 'log2FC',
-                              ylab = expression(-log[10](padj)),
-                              subtitle = NULL,
-                              caption = NULL,
-                              selectLab = c("AFUB_086660", "AFUB_086680", "AFUB_086700", "AFUB_086710", "AFUB_086720", "AFUB_086750"),
-                              legendLabels = NULL,
-                              legendPosition = NULL,
-                              legendLabSize = 0,
-                              legendIconSize = 0,
-                              drawConnectors = TRUE,
-                              titleLabSize = 8,
-                              axisLabSize = 7,
-                              pointSize = 1,
-                              labSize = 1, 
-                              #boxedLabels = TRUE,
-                              colAlpha = 0.6,
-                              col=c('#dad9d9', '#dad9d9', '#999999', '#684fa1'),
-                              max.overlaps = 100,
-                              xlim = c(-7, 7),
-                              ylim = c(-0.5, 65),
-                              gridlines.major = 0.3,
-                              gridlines.minor = 0.1,
-                              border = "partial",
-                              borderWidth = 0.3,
-                              borderColour = "black")
-
-ggsave(file="--/volcano_rep1.svg", plot=volcano_7A, width=3.2, height=3)
+write.csv(res_aneu_vs_euploid_noFK506_rep1, "res_aneu_vs_euploid_noFK506_rep1.csv")
 
 # rep2
-setwd("--/countsdata/rep2")
+setwd("/rep2")
 
 # data preparation for DESeq
 ## bring in counts files
@@ -271,7 +246,7 @@ colnames(rep2_counts) <- c("Euploid2_nodrug_1", "Euploid2_nodrug_2", "Euploid2_n
 
 # filter out genes with less than 1 TPM in any sample (only keep those that have 1TPM or more average in at least 1 condition/strain)
 ## calculate gene lengths from gff
-gff <- read.delim("A1163_CEA10T2T_liftoff.gff", header = FALSE, col.names = c("contig", "source", "cat", "start", "end", ".", "strand", ".", "ID"), sep = "\t", skip = 6)
+gff <- read.delim("../../A1163_CEA10T2T_liftoff.gff", header = FALSE, col.names = c("contig", "source", "cat", "start", "end", ".", "strand", ".", "ID"), sep = "\t", skip = 6)
 gff_proteincoding <- gff[gff$cat == "protein_coding_gene", ]
 gff_proteincoding$gene <- sub(".*(AFUB_\\d+).*", "\\1", gff_proteincoding$ID)
 gene_lengths <- gff_proteincoding[, c("gene", "start", "end")]
@@ -367,6 +342,7 @@ rep2_pcs_plot <- ggplot(pca_rep2_var_df, aes(x = PC, y = pca_rep2_var_explained,
   theme_bw()
 ggsave(file="--/rep2_pcs_plot.svg", plot=rep2_pcs_plot, width=3, height=2)
 
+
 pca_rep2_df <- data.frame(
   Sample = rownames(pca_rep2_manual_data$x),
   PC1 = pca_rep2_manual_data$x[ , 1],
@@ -378,7 +354,7 @@ pca_rep2_df <- cbind(pca_rep2_df, colData_rep2[rownames(pca_rep2_df), , drop = F
 #pca_rep2_data <- plotPCA(trans_rep2, intgroup = c("condition"), returnData=TRUE) # PC1: 65%; PC2: 25%
 pca_rep2 <- ggplot(pca_rep2_df, 
                    aes(PC1, PC2, color=condition, shape=condition)) + 
-  geom_richtext(data = pca_rep2_data, 
+  geom_richtext(data = pca_rep2_df, 
                 aes(label = condition),
                 color = "black") +
   geom_point(size = 3, shape = c( 21, 21, 21, 24, 24, 24, 21, 21, 21, 24, 24, 24),  fill = "white", stroke = 1) +
@@ -395,35 +371,155 @@ pca_rep2 <- ggplot(pca_rep2_df,
         axis.text.x = element_text(size = 7),
         axis.title.y = element_text(size = 8),
         axis.text.y = element_text(size = 7)) +
-  xlab("PC1 (60.5% variance)") +
-  ylab("PC2 (19.3% variance")
-ggsave(file="pca_rep2.svg", plot=pca_rep2, width=3, height=3)
+  xlab("PC1 (60.45% variance)") +
+  ylab("PC2 (19.25% variance")
 
-ggsave(file="--/pca_rep2.svg", plot=pca_rep2, width=2.5, height=2.5)
+#ggsave(file="--/pca_rep2.svg", plot=pca_rep2, width=2.5, height=2.5)
 
 # DEG comparisons
 res_aneu_vs_euploid_FK506_rep2 <- as.data.frame(results(dds_rep2,
                                                         contrast = c("condition", "Aneu7_FK506",
                                                                      "Euploid_FK506"),
                                                         alpha = 0.01))
-# save data
-write.csv(res_aneu_vs_euploid_FK506_rep2, "res_aneu_vs_euploid_FK506_rep2.csv")
 
-## get results for aneu vs euploid no drug comparisons
-res_aneu_vs_euploid_nodrug_rep1 <- as.data.frame(results(dds_rep1,
+res_aneu_vs_euploid_noFK506_rep2 <- as.data.frame(results(dds_rep2,
                                                         contrast = c("condition", "Aneu7_nodrug",
                                                                      "Euploid_nodrug"),
                                                         alpha = 0.01))
-write.csv(res_aneu_vs_euploid_nodrug_rep1, "res_aneu_vs_euploid_nodrug_rep1.csv")
+# save data
+write.csv(res_aneu_vs_euploid_FK506_rep2, "res_aneu_vs_euploid_FK506_rep2.csv")
+write.csv(res_aneu_vs_euploid_noFK506_rep2, "res_aneu_vs_euploid_noFK506_rep2.csv")
+
+# plot genome-wide expression changes
+## get results for aneu vs euploid no drug comparisons
+res_aneu_vs_euploid_nodrug_rep1 <- as.data.frame(results(dds_rep1,
+                                                         contrast = c("condition", "Aneu7_nodrug",
+                                                                      "Euploid_nodrug"),
+                                                         alpha = 0.01))
+
+#write.csv(res_aneu_vs_euploid_nodrug_rep1, "res_aneu_vs_euploid_nodrug_rep1.csv")
 
 res_aneu_vs_euploid_nodrug_rep2 <- as.data.frame(results(dds_rep2,
                                                          contrast = c("condition", "Aneu7_nodrug",
                                                                       "Euploid_nodrug"),
                                                          alpha = 0.01))
-write.csv(res_aneu_vs_euploid_nodrug_rep2, "res_aneu_vs_euploid_nodrug_rep2.csv")
+#write.csv(res_aneu_vs_euploid_nodrug_rep2, "res_aneu_vs_euploid_nodrug_rep2.csv")
 
-volcano_7B <- EnhancedVolcano(res_aneu_vs_euploid_FK506_rep2, 
-                              lab = row.names(res_aneu_vs_euploid_FK506_rep2),
+FigS1B_dfs <- list(res_aneu_vs_euploid_nodrug_rep1 = res_aneu_vs_euploid_nodrug_rep1,
+                   res_aneu_vs_euploid_nodrug_rep2 = res_aneu_vs_euploid_nodrug_rep2, 
+                   res_aneu_vs_euploid_FK506_rep1 = res_aneu_vs_euploid_FK506_rep1, 
+                   res_aneu_vs_euploid_FK506_rep2 = res_aneu_vs_euploid_FK506_rep2)
+
+# remove NA values for volcano
+res_aneu_vs_euploid_FK506_rep1_clean <- res_aneu_vs_euploid_FK506_rep1[
+  !is.na(res_aneu_vs_euploid_FK506_rep1$padj),
+]
+
+res_aneu_vs_euploid_FK506_rep2_clean <- res_aneu_vs_euploid_FK506_rep2[
+  !is.na(res_aneu_vs_euploid_FK506_rep2$padj),
+]
+# get shared genes in rep 1 and 2
+DEGs_FK506_merged <- merge(res_aneu_vs_euploid_FK506_rep1_clean, res_aneu_vs_euploid_FK506_rep2_clean,
+                           by = "row.names",
+                           all = FALSE)
+rownames(DEGs_FK506_merged) <- DEGs_FK506_merged$Row.names
+DEGs_FK506_merged <- DEGs_FK506_merged[,2:13]
+# upreg
+shared_upreg <- row.names(subset(DEGs_FK506_merged, 
+                                 DEGs_FK506_merged$log2FoldChange.x >=1 &
+                                   DEGs_FK506_merged$log2FoldChange.y >=1 &
+                                   DEGs_FK506_merged$padj.x <=0.05 &
+                                   DEGs_FK506_merged$padj.y <=0.05))
+# downreg
+shared_downreg <- row.names(subset(DEGs_FK506_merged, 
+                                   DEGs_FK506_merged$log2FoldChange.x <=-1 &
+                                     DEGs_FK506_merged$log2FoldChange.y <=-1 &
+                                     DEGs_FK506_merged$padj.x <=0.05 &
+                                     DEGs_FK506_merged$padj.y <=0.05))
+
+library(VennDiagram)
+# Venn diagrams for up and down genes
+## up
+rep1_up <- row.names(subset(res_aneu_vs_euploid_FK506_rep1_clean, res_aneu_vs_euploid_FK506_rep1_clean$padj <= 0.05 &
+                    res_aneu_vs_euploid_FK506_rep1_clean$log2FoldChange >= 1))
+
+rep2_up <- row.names(subset(res_aneu_vs_euploid_FK506_rep2_clean, res_aneu_vs_euploid_FK506_rep2_clean$padj <= 0.05 &
+                              res_aneu_vs_euploid_FK506_rep2_clean$log2FoldChange >= 1))
+### get list of shared DEGs
+Reduce(intersect, list(rep1_up, rep2_up))
+
+rep1_up_df <- subset(res_aneu_vs_euploid_FK506_rep1_clean, res_aneu_vs_euploid_FK506_rep1_clean$padj <= 0.05 &
+                     res_aneu_vs_euploid_FK506_rep1_clean$log2FoldChange >= 1)
+
+rep2_up_df <- subset(res_aneu_vs_euploid_FK506_rep2_clean, res_aneu_vs_euploid_FK506_rep2_clean$padj <= 0.05 &
+                       res_aneu_vs_euploid_FK506_rep2_clean$log2FoldChange >= 1)
+shared_up_rep2 <- rep2_up_df[rownames(rep2_up_df) %in% shared_upreg, ]
+
+venn.diagram(
+  x = list(rep1_up, rep2_up),
+  disable.logging = TRUE,
+  category.names = c("" , ""),
+  resolution = 500, 
+  imagetype = "tiff",
+  filename = '../../Rplots/shared_FK506_up_venn.tif',
+  output=FALSE,
+  col = c("black", "black"),
+  fill = c("#6850a1", "#397739"),
+  cat.fontfamily = "Helvetica",  
+  cat.cex = 1.8,                   
+  fontfamily = "Helvetica",      
+  cex = 0,
+  scaled = TRUE,  # Proportional scaling of circles
+  margin = 0.15,   # Margin around the diagram
+  circle.padding = 0.05
+)
+
+## down
+rep1_down <- row.names(subset(res_aneu_vs_euploid_FK506_rep1_clean, res_aneu_vs_euploid_FK506_rep1_clean$padj <= 0.05 &
+                              res_aneu_vs_euploid_FK506_rep1_clean$log2FoldChange <= -1))
+
+rep2_down <- row.names(subset(res_aneu_vs_euploid_FK506_rep2_clean, res_aneu_vs_euploid_FK506_rep2_clean$padj <= 0.05 &
+                              res_aneu_vs_euploid_FK506_rep2_clean$log2FoldChange <= -1))
+
+### get list of shared DEGs
+Reduce(intersect, list(rep1_down, rep2_down))
+
+venn.diagram(
+  x = list(rep1_down, rep2_down),
+  disable.logging = TRUE,
+  category.names = c("" , ""),
+  resolution = 500, 
+  imagetype = "tiff",
+  filename = '../../Rplots/shared_FK506_down_venn.tif',
+  output=FALSE,
+  col = c("black", "black"),
+  fill = c("#6850a1", "#397739"),
+  cat.fontfamily = "Helvetica",  
+  cat.cex = 1.8,                   
+  fontfamily = "Helvetica",      
+  cex = 0,
+  scaled = TRUE,  # Proportional scaling of circles
+  margin = 0.15,   # Margin around the diagram
+  circle.padding = 0.05
+)
+
+# volcano plots
+nsc_genes <- c("AFUB_086670", "AFUB_086680", "AFUB_086690", "AFUB_086700", "AFUB_086710", "AFUB_086720")
+
+keyvals_1 <- ifelse(
+  row.names(res_aneu_vs_euploid_FK506_rep1_clean) %in% nsc_genes, 'red',
+  ifelse(row.names(res_aneu_vs_euploid_FK506_rep1_clean) %in% c(shared_upreg, shared_downreg), 
+  '#444545',
+  ifelse(res_aneu_vs_euploid_FK506_rep1_clean$padj < 0.05 & abs(res_aneu_vs_euploid_FK506_rep1_clean$log2FoldChange) >= 1, '#684fa1',
+         '#dad9d9'
+  )))
+names(keyvals_1)[keyvals_1 == 'red'] <- 'nsc_gene'
+names(keyvals_1)[keyvals_1 == '#444545'] <- 'shared_DEG'
+names(keyvals_1)[keyvals_1 == '#684fa1'] <- 'unique_DEG'
+names(keyvals_1)[keyvals_1 == '#dad9d9'] <- 'non_DEG'
+
+volcano_7A <- EnhancedVolcano(res_aneu_vs_euploid_FK506_rep1_clean, 
+                              lab = row.names(res_aneu_vs_euploid_FK506_rep1_clean),
                               x = 'log2FoldChange',
                               y = 'padj',
                               title = NULL,
@@ -433,29 +529,72 @@ volcano_7B <- EnhancedVolcano(res_aneu_vs_euploid_FK506_rep2,
                               ylab = expression(-log[10](padj)),
                               subtitle = NULL,
                               caption = NULL,
-                              selectLab = c("AFUB_086660", "AFUB_086680", "AFUB_086700", "AFUB_086710", "AFUB_086720", "AFUB_086750"),
+                              selectLab = c("AFUB_086670", "AFUB_086680", "AFUB_086690", "AFUB_086700", "AFUB_086710", "AFUB_086720"),
+                              drawConnectors = TRUE,
                               legendLabels = NULL,
                               legendPosition = NULL,
                               legendLabSize = 0,
                               legendIconSize = 0,
-                              drawConnectors = TRUE,
                               titleLabSize = 8,
                               axisLabSize = 7,
-                              pointSize = 1,
+                              pointSize = 0.5,
                               labSize = 1, 
-                              #boxedLabels = TRUE,
-                              colAlpha = 0.6,
-                              col=c('#dad9d9', '#dad9d9', '#999999', '#397739'),
-                              max.overlaps = 200,
+                              colCustom = keyvals_1,
+                              colAlpha = 1,
                               xlim = c(-7, 7),
-                              ylim = c(-0.5, 65),
+                              ylim = c(-0.5, 115),
                               gridlines.major = 0.3,
                               gridlines.minor = 0.1,
                               border = "partial",
                               borderWidth = 0.3,
                               borderColour = "black")
 
-ggsave(file="--/volcano_rep2.svg", plot=volcano_7B, width=3.2, height=3)
+ggsave(file="../../Rplots/volcano_rep1.svg", plot=volcano_7A, width=3.5, height=3)
+
+keyvals_2 <- ifelse(
+  row.names(res_aneu_vs_euploid_FK506_rep2_clean) %in% nsc_genes, 'red',
+  ifelse(row.names(res_aneu_vs_euploid_FK506_rep2_clean) %in% c(shared_upreg, shared_downreg), 
+  '#444545',
+  ifelse(res_aneu_vs_euploid_FK506_rep2_clean$padj < 0.05 & abs(res_aneu_vs_euploid_FK506_rep2_clean$log2FoldChange) >= 1, '#397739',
+         '#dad9d9'
+  )))
+names(keyvals_2)[keyvals_2 == 'red'] <- 'nsc_gene'
+names(keyvals_2)[keyvals_2 == '#444545'] <- 'shared_DEG'
+names(keyvals_2)[keyvals_2 == '#397739'] <- 'unique_DEG'
+names(keyvals_2)[keyvals_2 == '#dad9d9'] <- 'non_DEG'
+
+volcano_7B <- EnhancedVolcano(res_aneu_vs_euploid_FK506_rep2_clean, 
+                              lab = row.names(res_aneu_vs_euploid_FK506_rep2_clean),
+                              x = 'log2FoldChange',
+                              y = 'padj',
+                              title = NULL,
+                              pCutoff = 0.05,
+                              FCcutoff = 1,
+                              xlab = 'log2FC',
+                              ylab = expression(-log[10](padj)),
+                              subtitle = NULL,
+                              caption = NULL,
+                              selectLab = c("AFUB_086670", "AFUB_086680", "AFUB_086690", "AFUB_086700", "AFUB_086710", "AFUB_086720"),
+                              drawConnectors = TRUE,
+                              legendLabels = NULL,
+                              legendPosition = NULL,
+                              legendLabSize = 0,
+                              legendIconSize = 0,
+                              titleLabSize = 8,
+                              axisLabSize = 7,
+                              pointSize = 0.5,
+                              labSize = 1, 
+                              colCustom = keyvals_2,
+                              colAlpha = 1,
+                              xlim = c(-7, 7),
+                              ylim = c(-0.5, 115),
+                              gridlines.major = 0.3,
+                              gridlines.minor = 0.1,
+                              border = "partial",
+                              borderWidth = 0.3,
+                              borderColour = "black")
+
+ggsave(file="../../Rplots/volcano_rep2.svg", plot=volcano_7B, width=3.5, height=3)
 
 # make heatmap of tpms in all BGCs (Fig. S4)
 SM_genes <- c(#DHN melanin
@@ -508,14 +647,19 @@ SM_tpms <- SM_tpms %>% select(c("Euploid_nodrug", "Euploid2_nodrug", "Aneu7A_nod
                                 "Euploid_FK506", "Euploid2_FK506", "Aneu7A_FK506", "Aneu7B_FK506"))
 SM_tpms <- SM_tpms[SM_genes, ]
 
+
 breaks <- seq(0, 500, length.out = 101)
 colors_heatmap <- colorRampPalette(c("white", "#f4cccc", "#ea9999", "#e06666", "#cc0000", "#990000", "#660000"))(length(breaks) - 1)
 
 S4_heatmap <- pheatmap(SM_tpms,
-color = colors_heatmap,
-breaks = breaks,
-cluster_rows = FALSE,
-cluster_cols = FALSE,
-fontsize = 5)
+                       color = colors_heatmap,
+                       breaks = breaks,
+                       cluster_rows = FALSE,
+                       cluster_cols = FALSE,
+                       fontsize = 5)
 
-ggsave(file="--/S4_heatmap.svg", plot=S4_heatmap, width=6, height=9, units = "in")
+#ggsave(file="--/S4_heatmap.svg", plot=S4_heatmap, width=6, height=9, units = "in")
+
+# save TPM tables
+write.csv(tpm_counts_rep1, "../tpm_counts_rep1.csv")
+write.csv(tpm_counts_rep2, "../tpm_counts_rep2.csv")
